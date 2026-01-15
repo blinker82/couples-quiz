@@ -6,6 +6,7 @@ type Partner = 'partner1' | 'partner2';
 
 interface QuizState {
   mode: 'same-device' | 'separate' | null;
+  quizId: string | null;
   currentPartner: Partner;
   currentQuestionIndex: number;
   partner1Responses: Response[];
@@ -15,6 +16,7 @@ interface QuizState {
   partner2Complete: boolean;
 
   setMode: (mode: 'same-device' | 'separate') => void;
+  setQuizId: (quizId: string) => void;
   setCurrentPartner: (partner: Partner) => void;
   addResponse: (partner: Partner, response: Response) => void;
   nextQuestion: () => void;
@@ -30,6 +32,7 @@ export const useQuizStore = create<QuizState>()(
   persist(
     (set, get) => ({
       mode: null,
+      quizId: null,
       currentPartner: 'partner1',
       currentQuestionIndex: 0,
       partner1Responses: [],
@@ -39,6 +42,8 @@ export const useQuizStore = create<QuizState>()(
       partner2Complete: false,
 
       setMode: (mode) => set({ mode }),
+
+      setQuizId: (quizId) => set({ quizId }),
 
       setCurrentPartner: (partner) =>
         set({
@@ -87,6 +92,7 @@ export const useQuizStore = create<QuizState>()(
       resetQuiz: () =>
         set({
           mode: null,
+          quizId: null,
           currentPartner: 'partner1',
           currentQuestionIndex: 0,
           partner1Responses: [],

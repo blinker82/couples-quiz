@@ -1,18 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { QuestionCard } from '@/components/quiz/QuestionCard';
 import { PartnerTransition } from '@/components/quiz/PartnerTransition';
 import { useQuizStore } from '@/stores/quizStore';
-import { QUIZ_QUESTIONS } from '@/lib/questions';
+import { getQuizSet, QuizSet } from '@/lib/questions';
 
 type QuizPhase = 'partner1-intro' | 'partner1-quiz' | 'transition' | 'partner2-quiz' | 'complete';
 
-export default function SameDeviceQuiz() {
+export default function SameDeviceQuiz({
+  params,
+}: {
+  params: Promise<{ quizId: string }>;
+}) {
+  const { quizId } = use(params);
   const router = useRouter();
   const [phase, setPhase] = useState<QuizPhase>('partner1-intro');
   const [mounted, setMounted] = useState(false);
+  const [quizSet, setQuizSet] = useState<QuizSet | null>(null);
 
   const {
     currentQuestionIndex,
@@ -24,17 +30,25 @@ export default function SameDeviceQuiz() {
     setQuestionIndex,
     markPartnerComplete,
     setMode,
+    setQuizId,
     resetQuiz,
     getResponse,
   } = useQuizStore();
 
   useEffect(() => {
     setMounted(true);
+    const quiz = getQuizSet(quizId);
+    if (!quiz) {
+      router.push('/');
+      return;
+    }
+    setQuizSet(quiz);
     resetQuiz();
     setMode('same-device');
-  }, []);
+    setQuizId(quizId);
+  }, [quizId]);
 
-  if (!mounted) {
+  if (!mounted || !quizSet) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin"></div>
@@ -42,10 +56,10 @@ export default function SameDeviceQuiz() {
     );
   }
 
-  const totalQuestions = QUIZ_QUESTIONS.length;
-  const currentQuestion = QUIZ_QUESTIONS[currentQuestionIndex];
+  const questions = quizSet.questions;
+  const totalQuestions = questions.length;
+  const currentQuestion = questions[currentQuestionIndex];
   const currentPartner = phase === 'partner1-quiz' ? 'partner1' : 'partner2';
-  const currentResponses = currentPartner === 'partner1' ? partner1Responses : partner2Responses;
   const selectedOptionId = getResponse(currentPartner, currentQuestion?.id)?.selectedOptionId || null;
 
   const handleSelect = (optionId: string, value: number) => {
@@ -67,7 +81,7 @@ export default function SameDeviceQuiz() {
       } else if (phase === 'partner2-quiz') {
         markPartnerComplete('partner2');
         setPhase('complete');
-        router.push('/results/same-device');
+        router.push(`/results/${quizId}/same-device`);
       }
     }
   };
@@ -103,6 +117,10 @@ export default function SameDeviceQuiz() {
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-8">
+          <div className="text-center mb-4">
+            <span className="text-2xl">{quizSet.emoji}</span>
+            <span className="ml-2 text-sm font-medium text-gray-600">{quizSet.name}</span>
+          </div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-600">
               {phase === 'partner1-quiz' ? 'Partner 1' : 'Partner 2'}
