@@ -1,11 +1,9 @@
 import { QuizSession, Response } from '@/types/quiz';
-import { getStore } from '@netlify/blobs';
 
-const STORE_NAME = 'quiz-sessions';
-
-async function getSessionStore() {
-  return getStore(STORE_NAME);
-}
+// In-memory session storage
+// Note: Sessions persist only within the same serverless instance
+// For production, use a database like Vercel KV, Upstash Redis, or MongoDB
+const sessions = new Map<string, QuizSession>();
 
 export async function createSession(): Promise<QuizSession> {
   const sessionId = generateSessionId();
@@ -28,29 +26,22 @@ export async function createSession(): Promise<QuizSession> {
     status: 'created',
   };
 
-  const store = await getSessionStore();
-  await store.setJSON(sessionId, session);
-
+  sessions.set(sessionId, session);
   return session;
 }
 
 export async function getSession(sessionId: string): Promise<QuizSession | null> {
-  try {
-    const store = await getSessionStore();
-    const session = await store.get(sessionId, { type: 'json' }) as QuizSession | null;
+  const session = sessions.get(sessionId);
 
-    if (!session) return null;
+  if (!session) return null;
 
-    // Check if expired
-    if (new Date(session.expiresAt) < new Date()) {
-      await store.delete(sessionId);
-      return null;
-    }
-
-    return session;
-  } catch {
+  // Check if expired
+  if (new Date(session.expiresAt) < new Date()) {
+    sessions.delete(sessionId);
     return null;
   }
+
+  return session;
 }
 
 export async function savePartnerResponses(
@@ -58,33 +49,27 @@ export async function savePartnerResponses(
   partnerId: 'partner1' | 'partner2',
   responses: Response[]
 ): Promise<QuizSession | null> {
-  try {
-    const store = await getSessionStore();
-    const session = await store.get(sessionId, { type: 'json' }) as QuizSession | null;
+  const session = sessions.get(sessionId);
 
-    if (!session) return null;
+  if (!session) return null;
 
-    session[partnerId].responses = responses;
-    session[partnerId].completedAt = new Date().toISOString();
+  session[partnerId].responses = responses;
+  session[partnerId].completedAt = new Date().toISOString();
 
-    // Update status
-    const p1Done = session.partner1.completedAt !== undefined;
-    const p2Done = session.partner2.completedAt !== undefined;
+  // Update status
+  const p1Done = session.partner1.completedAt !== undefined;
+  const p2Done = session.partner2.completedAt !== undefined;
 
-    if (p1Done && p2Done) {
-      session.status = 'both_complete';
-    } else if (p1Done) {
-      session.status = 'partner1_complete';
-    } else if (p2Done) {
-      session.status = 'partner2_complete';
-    }
-
-    await store.setJSON(sessionId, session);
-
-    return session;
-  } catch {
-    return null;
+  if (p1Done && p2Done) {
+    session.status = 'both_complete';
+  } else if (p1Done) {
+    session.status = 'partner1_complete';
+  } else if (p2Done) {
+    session.status = 'partner2_complete';
   }
+
+  sessions.set(sessionId, session);
+  return session;
 }
 
 function generateSessionId(): string {
